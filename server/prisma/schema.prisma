@@ -9,26 +9,38 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  email                 String   @unique
+  password              String?
+  name                  String
+  googleId              String?  @unique
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+  isAdmin               Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model GiftCard {
-  id             Int      @id @default(autoincrement())
-  card_name      String
-  vendor         String?
-  balance        Int?     // Changed from balance_amount to balance
-  expiry_date    DateTime?
-  is_archived    Boolean  @default(false)
-  card_type      String?
-  created_by     String?  // Email of the user who created the card
-  owner_email    String?  // Email of the card owner
-  created_date   DateTime @default(now())
-  updated_date   DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  card_name        String
+  vendor           String?
+  balance          Int?     // Changed from balance_amount to balance
+  expiry_date      DateTime?
+  is_archived      Boolean  @default(false)
+  card_type        String?
+  card_number      String?
+  cvv              String?
+  activation_code  String?
+  online_page_url  String?
+  notes            String?
+  card_image_url   String?
+  purchase_date    DateTime?
+  card_color       String?
+  created_by       String?  // Email of the user who created the card
+  owner_email      String?  // Email of the card owner
+  created_date     DateTime @default(now())
+  updated_date     DateTime @updatedAt
 }
 
 model Transaction {
@@ -59,20 +71,28 @@ model ArchivedCard {
 }
 
 model SharedCard {
-  id           Int      @id @default(autoincrement())
-  card_id      Int
-  user_email   String?
-  shared_with  String?  // Email of the user the card is shared with
-  group_id     Int?
+  id               Int      @id @default(autoincrement())
+  card_id          Int
+  user_email       String?
+  shared_with      String?  // Email of the user the card is shared with
+  group_id         Int?
   shared_with_group_id Int? // ID of the group the card is shared with
-  created_by   String?  // Email of the user who created the original card
-  balance      Int?     // Current balance of the shared card
-  card_name    String?  // Name of the card
-  vendor       String?  // Vendor of the card
-  expiry_date  DateTime? // Expiry date of the card
-  card_type    String?  // Type of the card
-  data         String?  // JSON data for additional fields
-  created_date DateTime @default(now())
+  created_by       String?  // Email of the user who created the original card
+  balance          Int?     // Current balance of the shared card
+  card_name        String?  // Name of the card
+  vendor           String?  // Vendor of the card
+  expiry_date      DateTime? // Expiry date of the card
+  card_type        String?  // Type of the card
+  card_number      String?
+  cvv              String?
+  activation_code  String?
+  online_page_url  String?
+  notes            String?
+  card_image_url   String?
+  purchase_date    DateTime?
+  card_color       String?
+  data             String?  // JSON data for additional fields
+  created_date     DateTime @default(now())
 }
 
 model UserCardType {
@@ -92,6 +112,8 @@ model CardActivityLog {
   user_email      String?
   user_name       String?
   details         String?
+  card_data       String?  // JSON string of card details after action
+  before_data     String?  // JSON string of card details before update
   timestamp       DateTime @default(now())
 }
 
@@ -124,4 +146,17 @@ model Notification {
   is_dismissed      Boolean  @default(false)
   data              String?
   created_date      DateTime @default(now())
+}
+
+model Store {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  website     String?
+  logo_url    String?
+  category    String?
+  is_active   Boolean  @default(true)
+  created_by  String?  // Admin who created this store
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
 }
