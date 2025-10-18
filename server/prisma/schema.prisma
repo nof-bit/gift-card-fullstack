@@ -1,0 +1,127 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GiftCard {
+  id             Int      @id @default(autoincrement())
+  card_name      String
+  vendor         String?
+  balance        Int?     // Changed from balance_amount to balance
+  expiry_date    DateTime?
+  is_archived    Boolean  @default(false)
+  card_type      String?
+  created_by     String?  // Email of the user who created the card
+  owner_email    String?  // Email of the card owner
+  created_date   DateTime @default(now())
+  updated_date   DateTime @updatedAt
+}
+
+model Transaction {
+  id           Int      @id @default(autoincrement())
+  gift_card_id Int
+  amount       Int
+  note         String?
+  user_email   String?  // Email of the user who made the transaction
+  timestamp    DateTime @default(now())
+}
+
+model GiftCardType {
+  id     Int    @id @default(autoincrement())
+  name   String
+  color  String?
+}
+
+model ArchivedCard {
+  id               Int      @id @default(autoincrement())
+  original_card_id Int?
+  card_name        String?
+  shared_with_email String?
+  shared_with_group_id Int?
+  created_by       String?  // Email of the user who created the original card
+  data             String?
+  archived_date    DateTime @default(now())
+  created_date     DateTime @default(now())
+}
+
+model SharedCard {
+  id           Int      @id @default(autoincrement())
+  card_id      Int
+  user_email   String?
+  shared_with  String?  // Email of the user the card is shared with
+  group_id     Int?
+  shared_with_group_id Int? // ID of the group the card is shared with
+  created_by   String?  // Email of the user who created the original card
+  balance      Int?     // Current balance of the shared card
+  card_name    String?  // Name of the card
+  vendor       String?  // Vendor of the card
+  expiry_date  DateTime? // Expiry date of the card
+  card_type    String?  // Type of the card
+  data         String?  // JSON data for additional fields
+  created_date DateTime @default(now())
+}
+
+model UserCardType {
+  id         Int    @id @default(autoincrement())
+  user_email String
+  name       String?
+  color      String?
+  type_color String?  // Alternative color field
+  supported_stores String? // JSON string of supported stores
+}
+
+model CardActivityLog {
+  id              Int      @id @default(autoincrement())
+  card_id         Int?
+  card_type_field String?
+  action          String
+  user_email      String?
+  user_name       String?
+  details         String?
+  timestamp       DateTime @default(now())
+}
+
+model ArchiveRequest {
+  id              Int      @id @default(autoincrement())
+  card_id         Int?
+  requester_email String?
+  status          String?
+  details         String?
+  createdAt       DateTime @default(now())
+}
+
+model Group {
+  id       Int    @id @default(autoincrement())
+  name     String
+  group_name String? // Alternative name for the group
+  members  String?  // JSON string (e.g. '["a@b.com"]')
+  created_by String? // Email of the user who created the group
+  owner_email String? // Email of the group owner
+  created_date DateTime @default(now())
+}
+
+model Notification {
+  id                Int      @id @default(autoincrement())
+  card_id           Int?
+  card_name         String?
+  recipient_email   String?
+  notification_type String?
+  is_read           Boolean  @default(false)
+  is_dismissed      Boolean  @default(false)
+  data              String?
+  created_date      DateTime @default(now())
+}
