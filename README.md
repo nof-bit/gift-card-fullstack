@@ -17,14 +17,14 @@ npm run prisma:migrate
 npm run dev
 
 
-####Client Setup (in a new terminal)
+###Client Setup (in a new terminal)
 cd client
 npm install
 npm run dev
 
 ⚠️ Make sure you have Node.js and npm installed on your computer.
 
-#####Features:
+###Features:
 🔐 Google OAuth login
 💳 Add, edit, and archive gift cards
 🧾 Track payments and transaction history
@@ -33,7 +33,7 @@ npm run dev
 🗂️ Store directory integration
 ⚙️ Admin options for managing shared cards
 
-#####🧰 Tech Stack
+###🧰 Tech Stack
 Frontend: React + Vite
 Backend: Node.js + Express + Prisma + SQLite
 Authentication: Google OAuth
