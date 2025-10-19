@@ -4,5 +4,4 @@ Run:
 2) Client (new terminal)
    cd client && npm i && npm run dev
 
-Import CSV:
-   Put CSVs in server/import (e.g. GiftCard.csv) then: cd server && npm run import:csv
+
