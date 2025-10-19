@@ -79,9 +79,23 @@ function transformGroupDataForDB(data) {
 
 async function logCardActivity(cardId, action, userEmail, cardData, beforeData = null) {
   try {
+    // Get user name from database
+    let userName = userEmail;
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: userEmail },
+        select: { name: true }
+      });
+      if (user && user.name) {
+        userName = user.name;
+      }
+    } catch (userError) {
+      console.warn('Could not fetch user name:', userError);
+    }
+
     // Create detailed changes description for edit actions
     let details = null;
-    if (action === 'updated' && beforeData && cardData) {
+    if (action === 'edit' && beforeData && cardData) {
       const changes = [];
       
       // Compare each field and create change descriptions
@@ -140,6 +154,7 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         card_id: cardId,
         action: action,
         user_email: userEmail,
+        user_name: userName,
         details: details ? JSON.stringify(details) : null,
         card_data: JSON.stringify(cardData),
         before_data: beforeData ? JSON.stringify(beforeData) : null,
@@ -150,6 +165,23 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
     console.error('Failed to log card activity:', error);
   }
 }
+
+// Log activity endpoint - MUST be before /:name routes
+router.post('/log-activity', requireAuth, async (req, res) => {
+  try {
+    const { cardId, action, cardData, beforeData } = req.body;
+    
+    if (!cardId || !action) {
+      return res.status(400).json({ error: 'cardId and action are required' });
+    }
+    
+    await logCardActivity(cardId, action, req.user.email, cardData, beforeData);
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error('Failed to log card activity:', error);
+    res.status(500).json({ error: 'Failed to log activity' });
+  }
+});
 
 router.post('/:name/filter', requireAuth, async (req,res)=>{
   const { name } = req.params;
