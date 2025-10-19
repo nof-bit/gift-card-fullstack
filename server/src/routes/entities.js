@@ -27,7 +27,7 @@ function buildWhere(where){
     const v = where[k];
     if(v && typeof v === 'object'){
       if('$in' in v){
-        out[k] = { in: Array.isArray(v.$in) ? v.$in : [] }
+      out[k] = { in: Array.isArray(v.$in) ? v.$in : [] }
       } else if('$exists' in v){
         if(v.$exists === false){
           out[k] = { equals: null }
@@ -96,7 +96,9 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         { key: 'online_page_url', label: 'Website URL' },
         { key: 'notes', label: 'Notes' },
         { key: 'card_color', label: 'Card Color' },
-        { key: 'purchase_date', label: 'Purchase Date' }
+        { key: 'purchase_date', label: 'Purchase Date' },
+        { key: 'vendor', label: 'Vendor' },
+        { key: 'card_image_url', label: 'Card Image URL' }
       ];
       
       fieldsToCompare.forEach(field => {
@@ -119,6 +121,17 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
       
       if (changes.length > 0) {
         details = { changes };
+      } else {
+        // Fallback: if no detailed changes detected, create a simple change log
+        const simpleChanges = [];
+        Object.keys(cardData).forEach(key => {
+          if (beforeData[key] !== cardData[key]) {
+            simpleChanges.push(`${key}: "${beforeData[key] || 'Empty'}" → "${cardData[key] || 'Empty'}"`);
+          }
+        });
+        if (simpleChanges.length > 0) {
+          details = { changes: simpleChanges };
+        }
       }
     }
     
@@ -174,7 +187,7 @@ router.post('/:name/filter', requireAuth, async (req,res)=>{
       }));
       res.json(transformedRows);
     } else {
-      res.json(rows);
+    res.json(rows);
     }
   }catch(e){ console.error(e); res.status(500).json({ error:'Filter failed' }); }
 });
@@ -236,7 +249,7 @@ router.post('/:name', requireAuth, async (req,res)=>{
       };
       res.status(201).json(transformedRow);
     } else {
-      res.status(201).json(row);
+    res.status(201).json(row);
     }
   }catch(e){ 
     console.error('Create error:', e); 
@@ -312,7 +325,9 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
           online_page_url: originalCard.online_page_url,
           notes: originalCard.notes,
           card_color: originalCard.card_color,
-          purchase_date: originalCard.purchase_date ? originalCard.purchase_date.toISOString() : null
+          purchase_date: originalCard.purchase_date ? originalCard.purchase_date.toISOString() : null,
+          vendor: originalCard.vendor,
+          card_image_url: originalCard.card_image_url
         };
       }
     }
@@ -333,7 +348,9 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
         online_page_url: req.body.online_page_url || null,
         notes: req.body.notes || null,
         card_color: req.body.card_color || null,
-        purchase_date: req.body.purchase_date || null
+        purchase_date: req.body.purchase_date || null,
+        vendor: req.body.vendor || null,
+        card_image_url: req.body.card_image_url || null
       };
       
       await logCardActivity(row.id, 'updated', req.user.email, afterData, beforeData);
@@ -362,7 +379,7 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       };
       res.json(transformedRow);
     } else {
-      res.json(row);
+    res.json(row);
     }
   }catch(e){ console.error(e); res.status(500).json({ error:'Update failed' }); }
 });
