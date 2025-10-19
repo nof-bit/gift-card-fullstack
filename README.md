@@ -39,3 +39,5 @@ Backend: Node.js + Express + Prisma + SQLite
 Authentication: Google OAuth
 Styling: CSS / Tailwind (if used)
 ORM: Prisma
+
+<img width="1878" height="897" alt="image" src="https://github.com/user-attachments/assets/7fe3b0b4-a08b-48d6-b5ba-d10eea29e5ff" />
