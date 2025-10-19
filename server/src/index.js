@@ -11,10 +11,18 @@ import entityRoutes from './routes/entities.js';
 import integrationRoutes from './routes/integrations.js';
 import adminRoutes from './routes/admin.js';
 
-dotenv.config();
-
+// Load environment variables from the parent directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Debug: Check if environment variables are loaded
+console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
+console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');
+console.log('PORT:', process.env.PORT);
+console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('=== END ENVIRONMENT DEBUG ===');
 
 const app = express();
 app.use(helmet());

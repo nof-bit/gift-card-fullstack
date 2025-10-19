@@ -1,6 +1,14 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Load environment variables before initializing Prisma
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -77,7 +85,7 @@ function transformGroupDataForDB(data) {
   return data;
 }
 
-async function logCardActivity(cardId, action, userEmail, cardData, beforeData = null) {
+async function logCardActivity(cardId, action, userEmail, cardData, beforeData = null, cardType = 'GiftCard', sharedWith = null) {
   try {
     // Get user name from database
     let userName = userEmail;
@@ -93,28 +101,37 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
       console.warn('Could not fetch user name:', userError);
     }
 
-    // Create detailed changes description for edit actions
+    // Create detailed changes description for all actions
     let details = null;
-    if (action === 'edit' && beforeData && cardData) {
-      const changes = [];
-      
+    const changes = [];
+    
+    // Define fields to compare for all actions
+    const fieldsToCompare = [
+      { key: 'card_name', label: 'Card Name' },
+      { key: 'card_type', label: 'Card Type' },
+      { key: 'balance', label: 'Balance' },
+      { key: 'expiry_date', label: 'Expiry Date' },
+      { key: 'card_number', label: 'Card Number' },
+      { key: 'cvv', label: 'CVV' },
+      { key: 'activation_code', label: 'Activation Code' },
+      { key: 'online_page_url', label: 'Website URL' },
+      { key: 'notes', label: 'Notes' },
+      { key: 'card_color', label: 'Card Color' },
+      { key: 'purchase_date', label: 'Purchase Date' },
+      { key: 'vendor', label: 'Vendor' },
+      { key: 'card_image_url', label: 'Card Image URL' }
+    ];
+
+    // Create action-specific details
+    if (action === 'created') {
+      details = {
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was created`,
+        card_type: cardData.card_type || 'Unknown',
+        balance: cardData.balance || 0,
+        vendor: cardData.vendor || 'Unknown'
+      };
+    } else if (action === 'edit' && beforeData && cardData) {
       // Compare each field and create change descriptions
-      const fieldsToCompare = [
-        { key: 'card_name', label: 'Card Name' },
-        { key: 'card_type', label: 'Card Type' },
-        { key: 'balance', label: 'Balance' },
-        { key: 'expiry_date', label: 'Expiry Date' },
-        { key: 'card_number', label: 'Card Number' },
-        { key: 'cvv', label: 'CVV' },
-        { key: 'activation_code', label: 'Activation Code' },
-        { key: 'online_page_url', label: 'Website URL' },
-        { key: 'notes', label: 'Notes' },
-        { key: 'card_color', label: 'Card Color' },
-        { key: 'purchase_date', label: 'Purchase Date' },
-        { key: 'vendor', label: 'Vendor' },
-        { key: 'card_image_url', label: 'Card Image URL' }
-      ];
-      
       fieldsToCompare.forEach(field => {
         const oldValue = beforeData[field.key];
         const newValue = cardData[field.key];
@@ -134,24 +151,50 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
       });
       
       if (changes.length > 0) {
-        details = { changes };
-      } else {
-        // Fallback: if no detailed changes detected, create a simple change log
-        const simpleChanges = [];
-        Object.keys(cardData).forEach(key => {
-          if (beforeData[key] !== cardData[key]) {
-            simpleChanges.push(`${key}: "${beforeData[key] || 'Empty'}" → "${cardData[key] || 'Empty'}"`);
-          }
-        });
-        if (simpleChanges.length > 0) {
-          details = { changes: simpleChanges };
-        }
+        details = { 
+          action_description: `Card "${cardData.card_name || 'Unknown'}" was edited`,
+          changes 
+        };
       }
+    } else if (action === 'payment') {
+      details = {
+        action_description: `Payment made on card "${cardData.card_name || 'Unknown'}"`,
+        payment_amount: cardData.payment_amount || 0,
+        new_balance: cardData.balance || 0,
+        store: cardData.store_name || 'Unknown Store'
+      };
+    } else if (action === 'share') {
+      details = {
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was shared`,
+        shared_with: sharedWith || 'Unknown',
+        card_type: cardData.card_type || 'Unknown'
+      };
+    } else if (action === 'archive') {
+      details = {
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was archived`,
+        final_balance: cardData.balance || 0,
+        reason: cardData.archive_reason || 'Manual archive'
+      };
+    } else if (action === 'restore') {
+      details = {
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was restored from archive`,
+        restored_balance: cardData.balance || 0,
+        card_type: cardData.card_type || 'Unknown'
+      };
+    } else if (action === 'use') {
+      details = {
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was used`,
+        amount_used: cardData.amount_used || 0,
+        new_balance: cardData.balance || 0,
+        location: cardData.location || 'Unknown'
+      };
     }
     
-    await prisma.cardActivityLog.create({
+    // Create the main activity log entry
+    const activityLog = await prisma.cardActivityLog.create({
       data: {
         card_id: cardId,
+        card_type_field: cardType,
         action: action,
         user_email: userEmail,
         user_name: userName,
@@ -161,21 +204,56 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         timestamp: new Date()
       }
     });
+
+    // If this is a shared card, create activity logs for all group members
+    if (sharedWith && Array.isArray(sharedWith)) {
+      const sharedLogPromises = sharedWith.map(async (memberEmail) => {
+        if (memberEmail !== userEmail) { // Don't duplicate the main log
+          try {
+            const memberUser = await prisma.user.findUnique({
+              where: { email: memberEmail },
+              select: { name: true }
+            });
+            
+            await prisma.cardActivityLog.create({
+              data: {
+                card_id: cardId,
+                card_type_field: cardType,
+                action: action,
+                user_email: memberEmail,
+                user_name: memberUser?.name || memberEmail,
+                details: details ? JSON.stringify(details) : null,
+                card_data: JSON.stringify(cardData),
+                before_data: beforeData ? JSON.stringify(beforeData) : null,
+                timestamp: new Date()
+              }
+            });
+          } catch (error) {
+            console.warn(`Failed to create shared log for ${memberEmail}:`, error);
+          }
+        }
+      });
+      
+      await Promise.all(sharedLogPromises);
+    }
+
+    return activityLog;
   } catch (error) {
     console.error('Failed to log card activity:', error);
+    throw error;
   }
 }
 
 // Log activity endpoint - MUST be before /:name routes
 router.post('/log-activity', requireAuth, async (req, res) => {
   try {
-    const { cardId, action, cardData, beforeData } = req.body;
+    const { cardId, action, cardData, beforeData, cardType, sharedWith } = req.body;
     
     if (!cardId || !action) {
       return res.status(400).json({ error: 'cardId and action are required' });
     }
     
-    await logCardActivity(cardId, action, req.user.email, cardData, beforeData);
+    await logCardActivity(cardId, action, req.user.email, cardData, beforeData, cardType, sharedWith);
     res.status(201).json({ success: true });
   } catch (error) {
     console.error('Failed to log card activity:', error);
@@ -263,8 +341,17 @@ router.post('/:name', requireAuth, async (req,res)=>{
         card_name: row.card_name,
         card_type: row.card_type,
         balance: row.balance ? row.balance / 100 : null,
-        expiry_date: row.expiry_date ? row.expiry_date.toISOString() : null
-      });
+        expiry_date: row.expiry_date ? row.expiry_date.toISOString() : null,
+        vendor: row.vendor,
+        card_number: row.card_number,
+        cvv: row.cvv,
+        activation_code: row.activation_code,
+        online_page_url: row.online_page_url,
+        notes: row.notes,
+        card_color: row.card_color,
+        purchase_date: row.purchase_date ? row.purchase_date.toISOString() : null,
+        card_image_url: row.card_image_url
+      }, null, 'GiftCard');
     }
     
     // Transform Group data to convert members JSON string to array
@@ -303,42 +390,48 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     
     // Transform GiftCard data for database storage
     if (name === 'GiftCard') {
-      data = {
-        card_name: data.card_name,
-        vendor: data.vendor || null,
-        balance: data.balance ? Math.round(data.balance * 100) : null, // Convert to cents
-        expiry_date: data.expiry_date ? new Date(data.expiry_date) : null,
-        is_archived: data.is_archived || false,
-        card_type: data.card_type || null,
-        card_number: data.card_number || null,
-        cvv: data.cvv || null,
-        activation_code: data.activation_code || null,
-        online_page_url: data.online_page_url || null,
-        notes: data.notes || null,
-        card_image_url: data.card_image_url || null,
-        purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
-        card_color: data.card_color || null
-      };
+      // Only update the fields that are provided in the request
+      const updateData = {};
+      
+      if (data.card_name !== undefined) updateData.card_name = data.card_name;
+      if (data.vendor !== undefined) updateData.vendor = data.vendor;
+      if (data.balance !== undefined) updateData.balance = Math.round(data.balance * 100); // Convert to cents
+      if (data.expiry_date !== undefined) updateData.expiry_date = data.expiry_date ? new Date(data.expiry_date) : null;
+      if (data.is_archived !== undefined) updateData.is_archived = data.is_archived;
+      if (data.card_type !== undefined) updateData.card_type = data.card_type;
+      if (data.card_number !== undefined) updateData.card_number = data.card_number;
+      if (data.cvv !== undefined) updateData.cvv = data.cvv;
+      if (data.activation_code !== undefined) updateData.activation_code = data.activation_code;
+      if (data.online_page_url !== undefined) updateData.online_page_url = data.online_page_url;
+      if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.card_image_url !== undefined) updateData.card_image_url = data.card_image_url;
+      if (data.purchase_date !== undefined) updateData.purchase_date = data.purchase_date ? new Date(data.purchase_date) : null;
+      if (data.card_color !== undefined) updateData.card_color = data.card_color;
+      
+      data = updateData;
     }
     
     // Transform SharedCard data for database storage
     if (name === 'SharedCard') {
-      data = {
-        card_name: data.card_name,
-        vendor: data.vendor || null,
-        balance: data.balance ? Math.round(data.balance * 100) : null, // Convert to cents
-        expiry_date: data.expiry_date ? new Date(data.expiry_date) : null,
-        card_type: data.card_type || null,
-        card_number: data.card_number || null,
-        cvv: data.cvv || null,
-        activation_code: data.activation_code || null,
-        online_page_url: data.online_page_url || null,
-        notes: data.notes || null,
-        card_image_url: data.card_image_url || null,
-        purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
-        card_color: data.card_color || null,
-        data: data.data || null // Store additional fields as JSON
-      };
+      // Only update the fields that are provided in the request
+      const updateData = {};
+      
+      if (data.card_name !== undefined) updateData.card_name = data.card_name;
+      if (data.vendor !== undefined) updateData.vendor = data.vendor;
+      if (data.balance !== undefined) updateData.balance = Math.round(data.balance * 100); // Convert to cents
+      if (data.expiry_date !== undefined) updateData.expiry_date = data.expiry_date ? new Date(data.expiry_date) : null;
+      if (data.card_type !== undefined) updateData.card_type = data.card_type;
+      if (data.card_number !== undefined) updateData.card_number = data.card_number;
+      if (data.cvv !== undefined) updateData.cvv = data.cvv;
+      if (data.activation_code !== undefined) updateData.activation_code = data.activation_code;
+      if (data.online_page_url !== undefined) updateData.online_page_url = data.online_page_url;
+      if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.card_image_url !== undefined) updateData.card_image_url = data.card_image_url;
+      if (data.purchase_date !== undefined) updateData.purchase_date = data.purchase_date ? new Date(data.purchase_date) : null;
+      if (data.card_color !== undefined) updateData.card_color = data.card_color;
+      if (data.data !== undefined) updateData.data = data.data;
+      
+      data = updateData;
     }
     
     // Get the original data for GiftCard updates to log before/after
@@ -368,24 +461,65 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     
     // Log activity for GiftCard updates
     if (name === 'GiftCard') {
-      // Use the original request body for the after data
-      const afterData = {
-        card_name: req.body.card_name || null,
-        card_type: req.body.card_type || null,
-        balance: req.body.balance || null,
-        expiry_date: req.body.expiry_date || null,
-        card_number: req.body.card_number || null,
-        cvv: req.body.cvv || null,
-        activation_code: req.body.activation_code || null,
-        online_page_url: req.body.online_page_url || null,
-        notes: req.body.notes || null,
-        card_color: req.body.card_color || null,
-        purchase_date: req.body.purchase_date || null,
-        vendor: req.body.vendor || null,
-        card_image_url: req.body.card_image_url || null
-      };
+      // Only include fields that were actually provided in the request body
+      const afterData = {};
+      if (req.body.card_name !== undefined) afterData.card_name = req.body.card_name;
+      if (req.body.card_type !== undefined) afterData.card_type = req.body.card_type;
+      if (req.body.balance !== undefined) afterData.balance = req.body.balance;
+      if (req.body.expiry_date !== undefined) afterData.expiry_date = req.body.expiry_date;
+      if (req.body.card_number !== undefined) afterData.card_number = req.body.card_number;
+      if (req.body.cvv !== undefined) afterData.cvv = req.body.cvv;
+      if (req.body.activation_code !== undefined) afterData.activation_code = req.body.activation_code;
+      if (req.body.online_page_url !== undefined) afterData.online_page_url = req.body.online_page_url;
+      if (req.body.notes !== undefined) afterData.notes = req.body.notes;
+      if (req.body.card_color !== undefined) afterData.card_color = req.body.card_color;
+      if (req.body.purchase_date !== undefined) afterData.purchase_date = req.body.purchase_date;
+      if (req.body.vendor !== undefined) afterData.vendor = req.body.vendor;
+      if (req.body.card_image_url !== undefined) afterData.card_image_url = req.body.card_image_url;
       
-      await logCardActivity(row.id, 'updated', req.user.email, afterData, beforeData);
+      await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'GiftCard');
+    }
+    
+    // Log activity for SharedCard updates
+    if (name === 'SharedCard') {
+      // Get the original data for SharedCard updates to log before/after
+      const originalCard = await model.findUnique({ where: { id: Number(id) } });
+      let beforeData = null;
+      if (originalCard) {
+        beforeData = {
+          card_name: originalCard.card_name,
+          card_type: originalCard.card_type,
+          balance: originalCard.balance ? originalCard.balance / 100 : null,
+          expiry_date: originalCard.expiry_date ? originalCard.expiry_date.toISOString() : null,
+          card_number: originalCard.card_number,
+          cvv: originalCard.cvv,
+          activation_code: originalCard.activation_code,
+          online_page_url: originalCard.online_page_url,
+          notes: originalCard.notes,
+          card_color: originalCard.card_color,
+          purchase_date: originalCard.purchase_date ? originalCard.purchase_date.toISOString() : null,
+          vendor: originalCard.vendor,
+          card_image_url: originalCard.card_image_url
+        };
+      }
+      
+      // Only include fields that were actually provided in the request body
+      const afterData = {};
+      if (req.body.card_name !== undefined) afterData.card_name = req.body.card_name;
+      if (req.body.card_type !== undefined) afterData.card_type = req.body.card_type;
+      if (req.body.balance !== undefined) afterData.balance = req.body.balance;
+      if (req.body.expiry_date !== undefined) afterData.expiry_date = req.body.expiry_date;
+      if (req.body.card_number !== undefined) afterData.card_number = req.body.card_number;
+      if (req.body.cvv !== undefined) afterData.cvv = req.body.cvv;
+      if (req.body.activation_code !== undefined) afterData.activation_code = req.body.activation_code;
+      if (req.body.online_page_url !== undefined) afterData.online_page_url = req.body.online_page_url;
+      if (req.body.notes !== undefined) afterData.notes = req.body.notes;
+      if (req.body.card_color !== undefined) afterData.card_color = req.body.card_color;
+      if (req.body.purchase_date !== undefined) afterData.purchase_date = req.body.purchase_date;
+      if (req.body.vendor !== undefined) afterData.vendor = req.body.vendor;
+      if (req.body.card_image_url !== undefined) afterData.card_image_url = req.body.card_image_url;
+      
+      await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'SharedCard');
     }
     
     // Transform Group data to convert members JSON string to array
@@ -441,3 +575,4 @@ router.get('/stores', async (req, res) => {
 });
 
 export default router;
+

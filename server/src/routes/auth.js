@@ -6,6 +6,14 @@ import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
 import passport from '../config/googleAuth.js';
 import { sendPasswordResetEmail, sendWelcomeEmail } from '../services/emailService.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Load environment variables before initializing Prisma
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const prisma = new PrismaClient();
 const router = express.Router();
