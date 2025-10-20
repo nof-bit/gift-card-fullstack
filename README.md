@@ -5,7 +5,7 @@ Easily add new cards, record transactions, and keep your digital wallet organize
 
 ---
 
-## 🚀 Getting Started (Windows)
+## Getting Started (Windows)
 
 ### 🖥️ Server Setup
 Open **Command Prompt (cmd)** or **PowerShell**, then run:
@@ -25,15 +25,15 @@ npm run dev
 ⚠️ Make sure you have Node.js and npm installed on your computer.
 
 ## Features:
-🔐 Google OAuth login
-💳 Add, edit, and archive gift cards
-🧾 Track payments and transaction history
-👥 Share cards with friends or groups
-🔍 Search and filter by store or card type
-🗂️ Store directory integration
-⚙️ Admin options for managing shared cards
+ Google OAuth login
+ Add, edit, and archive gift cards
+ Track payments and transaction history
+ Share cards with friends or groups
+ Search and filter by store or card type
+ Store directory integration
+ Admin options for managing shared cards
 
-## 🧰 Tech Stack
+## Tech Stack
 Frontend: React + Vite
 Backend: Node.js + Express + Prisma + SQLite
 Authentication: Google OAuth
