@@ -18,9 +18,9 @@ npm run dev
 
 
 ### Client Setup (in a new terminal)
-cd client
-npm install
-npm run dev
+-cd client
+-npm install
+-npm run dev
 
 Make sure you have Node.js and npm installed on your computer.
 
