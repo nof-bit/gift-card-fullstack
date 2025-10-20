@@ -1,4 +1,4 @@
-# 🎁 Gift Card Wallet Organizer
+#  Gift Card Wallet Organizer 🎁
 
 A modern full-stack web app for managing, sharing, and tracking all your gift cards in one place.  
 Easily add new cards, record transactions, and keep your digital wallet organized.
@@ -7,7 +7,7 @@ Easily add new cards, record transactions, and keep your digital wallet organize
 
 ## Getting Started (Windows)
 
-### 🖥️ Server Setup
+### Server Setup
 Open **Command Prompt (cmd)** or **PowerShell**, then run:
 cd server
 copy .env.example .env
@@ -22,7 +22,7 @@ cd client
 npm install
 npm run dev
 
-⚠️ Make sure you have Node.js and npm installed on your computer.
+Make sure you have Node.js and npm installed on your computer.
 
 ## Features:
  Google OAuth login
@@ -40,5 +40,5 @@ Authentication: Google OAuth
 Styling: CSS / Tailwind (if used)
 ORM: Prisma
 
-## 🖼️ Screenshots
+##  Screenshots
 <img width="1878" height="897" alt="image" src="https://github.com/user-attachments/assets/7fe3b0b4-a08b-48d6-b5ba-d10eea29e5ff" />
