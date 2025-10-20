@@ -244,6 +244,28 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
 }
 
 // Log activity endpoint - MUST be before /:name routes
+// Public endpoint to get stores by card type (no auth required)
+router.get('/stores/by-card-type/:cardTypeName', async (req, res) => {
+  try {
+    const { cardTypeName } = req.params;
+    
+    const stores = await prisma.store.findMany({
+      where: {
+        description: { contains: cardTypeName }
+      },
+      select: {
+        name: true,
+        description: true
+      }
+    });
+    
+    res.json(stores);
+  } catch (error) {
+    console.error('Error fetching stores by card type:', error);
+    res.status(500).json({ error: 'Failed to fetch stores' });
+  }
+});
+
 router.post('/log-activity', requireAuth, async (req, res) => {
   try {
     const { cardId, action, cardData, beforeData, cardType, sharedWith } = req.body;
