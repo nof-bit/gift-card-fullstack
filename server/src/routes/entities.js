@@ -35,7 +35,7 @@ function buildWhere(where){
     const v = where[k];
     if(v && typeof v === 'object'){
       if('$in' in v){
-      out[k] = { in: Array.isArray(v.$in) ? v.$in : [] }
+        out[k] = { in: Array.isArray(v.$in) ? v.$in : [] }
       } else if('$exists' in v){
         if(v.$exists === false){
           out[k] = { equals: null }
@@ -103,20 +103,20 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
 
     // Create detailed changes description for all actions
     let details = null;
-    const changes = [];
-    
+      const changes = [];
+      
     // Define fields to compare for all actions
-    const fieldsToCompare = [
-      { key: 'card_name', label: 'Card Name' },
-      { key: 'card_type', label: 'Card Type' },
-      { key: 'balance', label: 'Balance' },
-      { key: 'expiry_date', label: 'Expiry Date' },
-      { key: 'card_number', label: 'Card Number' },
-      { key: 'cvv', label: 'CVV' },
-      { key: 'activation_code', label: 'Activation Code' },
-      { key: 'online_page_url', label: 'Website URL' },
-      { key: 'notes', label: 'Notes' },
-      { key: 'card_color', label: 'Card Color' },
+      const fieldsToCompare = [
+        { key: 'card_name', label: 'Card Name' },
+        { key: 'card_type', label: 'Card Type' },
+        { key: 'balance', label: 'Balance' },
+        { key: 'expiry_date', label: 'Expiry Date' },
+        { key: 'card_number', label: 'Card Number' },
+        { key: 'cvv', label: 'CVV' },
+        { key: 'activation_code', label: 'Activation Code' },
+        { key: 'online_page_url', label: 'Website URL' },
+        { key: 'notes', label: 'Notes' },
+        { key: 'card_color', label: 'Card Color' },
       { key: 'purchase_date', label: 'Purchase Date' },
       { key: 'vendor', label: 'Vendor' },
       { key: 'card_image_url', label: 'Card Image URL' }
@@ -260,6 +260,92 @@ router.post('/log-activity', requireAuth, async (req, res) => {
   }
 });
 
+// Endpoint to create or get custom card type for user
+router.post('/custom-card-type', requireAuth, async (req, res) => {
+  try {
+    const { cardTypeName, userEmail } = req.body;
+    
+    if (!cardTypeName || !userEmail) {
+      return res.status(400).json({ error: 'cardTypeName and userEmail are required' });
+    }
+    
+    // Check if this card type already exists globally
+    const globalCardType = await prisma.giftCardType.findFirst({
+      where: { name: cardTypeName }
+    });
+    
+    if (globalCardType) {
+      // If it exists globally, return the global type
+      return res.json({ 
+        success: true, 
+        cardType: globalCardType,
+        isGlobal: true 
+      });
+    }
+    
+    // Check if user already has this custom card type
+    const existingUserCardType = await prisma.userCardType.findFirst({
+      where: { 
+        user_email: userEmail,
+        name: cardTypeName 
+      }
+    });
+    
+    if (existingUserCardType) {
+      return res.json({ 
+        success: true, 
+        cardType: existingUserCardType,
+        isGlobal: false,
+        isExisting: true 
+      });
+    }
+    
+    // Create new custom card type for user
+    const newUserCardType = await prisma.userCardType.create({
+      data: {
+        user_email: userEmail,
+        name: cardTypeName,
+        type_color: '#3B82F6', // Default blue color
+        supported_stores: JSON.stringify([cardTypeName]) // Store accepts itself as a store
+      }
+    });
+    
+    // Also create a store entry for this custom card type if it doesn't exist
+    try {
+      const existingStore = await prisma.store.findFirst({
+        where: { name: cardTypeName }
+      });
+      
+      if (!existingStore) {
+        await prisma.store.create({
+          data: {
+            name: cardTypeName,
+            description: `Accepts: ${cardTypeName}`,
+            category: 'Custom',
+            is_active: true,
+            created_by: userEmail
+          }
+        });
+        console.log(`Created store entry for custom card type: ${cardTypeName}`);
+      }
+    } catch (storeError) {
+      console.error('Failed to create store entry for custom card type:', storeError);
+      // Don't fail the card type creation if store creation fails
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      cardType: newUserCardType,
+      isGlobal: false,
+      isExisting: false 
+    });
+    
+  } catch (error) {
+    console.error('Failed to create custom card type:', error);
+    res.status(500).json({ error: 'Failed to create custom card type' });
+  }
+});
+
 router.post('/:name/filter', requireAuth, async (req,res)=>{
   const { name } = req.params;
   const { where = {}, sortBy, limit } = req.body || {};
@@ -296,7 +382,7 @@ router.post('/:name/filter', requireAuth, async (req,res)=>{
       }));
       res.json(transformedRows);
     } else {
-    res.json(rows);
+      res.json(rows);
     }
   }catch(e){ console.error(e); res.status(500).json({ error:'Filter failed' }); }
 });
@@ -367,7 +453,7 @@ router.post('/:name', requireAuth, async (req,res)=>{
       };
       res.status(201).json(transformedRow);
     } else {
-    res.status(201).json(row);
+      res.status(201).json(row);
     }
   }catch(e){ 
     console.error('Create error:', e); 
@@ -533,7 +619,7 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       };
       res.json(transformedRow);
     } else {
-    res.json(row);
+      res.json(row);
     }
   }catch(e){ console.error(e); res.status(500).json({ error:'Update failed' }); }
 });
