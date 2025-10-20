@@ -181,12 +181,11 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         restored_balance: cardData.balance || 0,
         card_type: cardData.card_type || 'Unknown'
       };
-    } else if (action === 'use') {
+    } else if (action === 'make_personal') {
       details = {
-        action_description: `Card "${cardData.card_name || 'Unknown'}" was used`,
-        amount_used: cardData.amount_used || 0,
-        new_balance: cardData.balance || 0,
-        location: cardData.location || 'Unknown'
+        action_description: `Card "${cardData.card_name || 'Unknown'}" was made personal`,
+        previous_shared_with: cardData.previous_shared_with || 'Unknown',
+        card_type: cardData.card_type || 'Unknown'
       };
     }
     
@@ -434,9 +433,9 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       data = updateData;
     }
     
-    // Get the original data for GiftCard updates to log before/after
+    // Get the original data for card updates to log before/after
     let beforeData = null;
-    if (name === 'GiftCard') {
+    if (name === 'GiftCard' || name === 'SharedCard') {
       const originalCard = await model.findUnique({ where: { id: Number(id) } });
       if (originalCard) {
         beforeData = {
@@ -461,63 +460,52 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     
     // Log activity for GiftCard updates
     if (name === 'GiftCard') {
-      // Only include fields that were actually provided in the request body
-      const afterData = {};
-      if (req.body.card_name !== undefined) afterData.card_name = req.body.card_name;
-      if (req.body.card_type !== undefined) afterData.card_type = req.body.card_type;
-      if (req.body.balance !== undefined) afterData.balance = req.body.balance;
-      if (req.body.expiry_date !== undefined) afterData.expiry_date = req.body.expiry_date;
-      if (req.body.card_number !== undefined) afterData.card_number = req.body.card_number;
-      if (req.body.cvv !== undefined) afterData.cvv = req.body.cvv;
-      if (req.body.activation_code !== undefined) afterData.activation_code = req.body.activation_code;
-      if (req.body.online_page_url !== undefined) afterData.online_page_url = req.body.online_page_url;
-      if (req.body.notes !== undefined) afterData.notes = req.body.notes;
-      if (req.body.card_color !== undefined) afterData.card_color = req.body.card_color;
-      if (req.body.purchase_date !== undefined) afterData.purchase_date = req.body.purchase_date;
-      if (req.body.vendor !== undefined) afterData.vendor = req.body.vendor;
-      if (req.body.card_image_url !== undefined) afterData.card_image_url = req.body.card_image_url;
+      // Get the complete after state from the database
+      const afterCard = await model.findUnique({ where: { id: Number(id) } });
+      let afterData = null;
+      if (afterCard) {
+        afterData = {
+          card_name: afterCard.card_name,
+          card_type: afterCard.card_type,
+          balance: afterCard.balance ? afterCard.balance / 100 : null,
+          expiry_date: afterCard.expiry_date ? afterCard.expiry_date.toISOString() : null,
+          card_number: afterCard.card_number,
+          cvv: afterCard.cvv,
+          activation_code: afterCard.activation_code,
+          online_page_url: afterCard.online_page_url,
+          notes: afterCard.notes,
+          card_color: afterCard.card_color,
+          purchase_date: afterCard.purchase_date ? afterCard.purchase_date.toISOString() : null,
+          vendor: afterCard.vendor,
+          card_image_url: afterCard.card_image_url
+        };
+      }
       
       await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'GiftCard');
     }
     
     // Log activity for SharedCard updates
     if (name === 'SharedCard') {
-      // Get the original data for SharedCard updates to log before/after
-      const originalCard = await model.findUnique({ where: { id: Number(id) } });
-      let beforeData = null;
-      if (originalCard) {
-        beforeData = {
-          card_name: originalCard.card_name,
-          card_type: originalCard.card_type,
-          balance: originalCard.balance ? originalCard.balance / 100 : null,
-          expiry_date: originalCard.expiry_date ? originalCard.expiry_date.toISOString() : null,
-          card_number: originalCard.card_number,
-          cvv: originalCard.cvv,
-          activation_code: originalCard.activation_code,
-          online_page_url: originalCard.online_page_url,
-          notes: originalCard.notes,
-          card_color: originalCard.card_color,
-          purchase_date: originalCard.purchase_date ? originalCard.purchase_date.toISOString() : null,
-          vendor: originalCard.vendor,
-          card_image_url: originalCard.card_image_url
+      // Get the complete after state from the database
+      const afterCard = await model.findUnique({ where: { id: Number(id) } });
+      let afterData = null;
+      if (afterCard) {
+        afterData = {
+          card_name: afterCard.card_name,
+          card_type: afterCard.card_type,
+          balance: afterCard.balance ? afterCard.balance / 100 : null,
+          expiry_date: afterCard.expiry_date ? afterCard.expiry_date.toISOString() : null,
+          card_number: afterCard.card_number,
+          cvv: afterCard.cvv,
+          activation_code: afterCard.activation_code,
+          online_page_url: afterCard.online_page_url,
+          notes: afterCard.notes,
+          card_color: afterCard.card_color,
+          purchase_date: afterCard.purchase_date ? afterCard.purchase_date.toISOString() : null,
+          vendor: afterCard.vendor,
+          card_image_url: afterCard.card_image_url
         };
       }
-      
-      // Only include fields that were actually provided in the request body
-      const afterData = {};
-      if (req.body.card_name !== undefined) afterData.card_name = req.body.card_name;
-      if (req.body.card_type !== undefined) afterData.card_type = req.body.card_type;
-      if (req.body.balance !== undefined) afterData.balance = req.body.balance;
-      if (req.body.expiry_date !== undefined) afterData.expiry_date = req.body.expiry_date;
-      if (req.body.card_number !== undefined) afterData.card_number = req.body.card_number;
-      if (req.body.cvv !== undefined) afterData.cvv = req.body.cvv;
-      if (req.body.activation_code !== undefined) afterData.activation_code = req.body.activation_code;
-      if (req.body.online_page_url !== undefined) afterData.online_page_url = req.body.online_page_url;
-      if (req.body.notes !== undefined) afterData.notes = req.body.notes;
-      if (req.body.card_color !== undefined) afterData.card_color = req.body.card_color;
-      if (req.body.purchase_date !== undefined) afterData.purchase_date = req.body.purchase_date;
-      if (req.body.vendor !== undefined) afterData.vendor = req.body.vendor;
-      if (req.body.card_image_url !== undefined) afterData.card_image_url = req.body.card_image_url;
       
       await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'SharedCard');
     }
