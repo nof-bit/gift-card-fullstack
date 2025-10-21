@@ -116,7 +116,7 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         { key: 'activation_code', label: 'Activation Code' },
         { key: 'online_page_url', label: 'Website URL' },
         { key: 'notes', label: 'Notes' },
-        { key: 'card_color', label: 'Card Color' },
+        // { key: 'card_color', label: 'Card Color' }, // Excluded from history log
       { key: 'purchase_date', label: 'Purchase Date' },
       { key: 'vendor', label: 'Vendor' },
       { key: 'card_image_url', label: 'Card Image URL' }
@@ -141,11 +141,47 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
         const normalizedNewValue = (newValue === null || newValue === undefined || newValue === '') ? null : newValue;
         
         if (normalizedOldValue !== normalizedNewValue) {
+          // Format dates for better readability
+          let displayBefore = normalizedOldValue;
+          let displayAfter = normalizedNewValue;
+          
+          if (field.key === 'expiry_date' || field.key === 'purchase_date') {
+            if (normalizedOldValue) {
+              try {
+                const date = new Date(normalizedOldValue);
+                if (!isNaN(date.getTime())) {
+                  displayBefore = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  });
+                }
+              } catch (e) {
+                // Keep original value if formatting fails
+              }
+            }
+            
+            if (normalizedNewValue) {
+              try {
+                const date = new Date(normalizedNewValue);
+                if (!isNaN(date.getTime())) {
+                  displayAfter = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  });
+                }
+              } catch (e) {
+                // Keep original value if formatting fails
+              }
+            }
+          }
+          
           changes.push({
             field: field.label,
-            before: normalizedOldValue,
-            after: normalizedNewValue,
-            description: `${field.label}: "${normalizedOldValue || 'Empty'}" → "${normalizedNewValue || 'Empty'}"`
+            before: displayBefore,
+            after: displayAfter,
+            description: `${field.label}: "${displayBefore || 'Empty'}" → "${displayAfter || 'Empty'}"`
           });
         }
       });
@@ -495,6 +531,11 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     // Transform Group data for database storage
     let data = name === 'Group' ? transformGroupDataForDB(req.body) : req.body;
     
+    // Check if this is a color-only update (no logging needed)
+    const isColorOnlyUpdate = (name === 'GiftCard' || name === 'SharedCard') && 
+      Object.keys(data).length === 1 && 
+      data.card_color !== undefined;
+    
     // Transform GiftCard data for database storage
     if (name === 'GiftCard') {
       // Only update the fields that are provided in the request
@@ -566,8 +607,8 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     
     const row = await model.update({ where: { id: Number(id) }, data });
     
-    // Log activity for GiftCard updates
-    if (name === 'GiftCard') {
+    // Log activity for GiftCard updates (skip color-only updates)
+    if (name === 'GiftCard' && !isColorOnlyUpdate) {
       // Get the complete after state from the database
       const afterCard = await model.findUnique({ where: { id: Number(id) } });
       let afterData = null;
@@ -592,8 +633,8 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'GiftCard');
     }
     
-    // Log activity for SharedCard updates
-    if (name === 'SharedCard') {
+    // Log activity for SharedCard updates (skip color-only updates)
+    if (name === 'SharedCard' && !isColorOnlyUpdate) {
       // Get the complete after state from the database
       const afterCard = await model.findUnique({ where: { id: Number(id) } });
       let afterData = null;
