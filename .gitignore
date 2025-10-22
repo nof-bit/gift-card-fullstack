@@ -1,0 +1,4 @@
+
+# local Prisma SQLite DBs
+server/prisma/prisma/*.db
+server/prisma/prisma/*.sqlite*

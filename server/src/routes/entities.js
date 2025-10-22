@@ -195,7 +195,8 @@ async function logCardActivity(cardId, action, userEmail, cardData, beforeData =
     } else if (action === 'payment') {
       details = {
         action_description: `Payment made on card "${cardData.card_name || 'Unknown'}"`,
-        payment_amount: cardData.payment_amount || 0,
+        amount: cardData.payment_amount || 0,
+        previous_balance: beforeData?.balance || 0,
         new_balance: cardData.balance || 0,
         store: cardData.store_name || 'Unknown Store'
       };
@@ -536,6 +537,15 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       Object.keys(data).length === 1 && 
       data.card_color !== undefined;
     
+    // Check if this is a payment update (skip edit logging, payment is logged separately)
+    const isPaymentUpdate = (name === 'GiftCard' || name === 'SharedCard') && 
+      data._isPaymentUpdate === true;
+    
+    // Remove the payment update flag from data before database update
+    if (isPaymentUpdate) {
+      delete data._isPaymentUpdate;
+    }
+    
     // Transform GiftCard data for database storage
     if (name === 'GiftCard') {
       // Only update the fields that are provided in the request
@@ -607,8 +617,8 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
     
     const row = await model.update({ where: { id: Number(id) }, data });
     
-    // Log activity for GiftCard updates (skip color-only updates)
-    if (name === 'GiftCard' && !isColorOnlyUpdate) {
+    // Log activity for GiftCard updates (skip color-only updates and payment updates)
+    if (name === 'GiftCard' && !isColorOnlyUpdate && !isPaymentUpdate) {
       // Get the complete after state from the database
       const afterCard = await model.findUnique({ where: { id: Number(id) } });
       let afterData = null;
@@ -633,8 +643,8 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
       await logCardActivity(row.id, 'edit', req.user.email, afterData, beforeData, 'GiftCard');
     }
     
-    // Log activity for SharedCard updates (skip color-only updates)
-    if (name === 'SharedCard' && !isColorOnlyUpdate) {
+    // Log activity for SharedCard updates (skip color-only updates and payment updates)
+    if (name === 'SharedCard' && !isColorOnlyUpdate && !isPaymentUpdate) {
       // Get the complete after state from the database
       const afterCard = await model.findUnique({ where: { id: Number(id) } });
       let afterData = null;
