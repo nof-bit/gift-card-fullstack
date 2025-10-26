@@ -129,11 +129,16 @@ model ArchiveRequest {
 model Group {
   id       Int    @id @default(autoincrement())
   name     String
+  description String? // Optional description for the group
   group_name String? // Alternative name for the group
   members  String?  // JSON string (e.g. '["a@b.com"]')
   created_by String? // Email of the user who created the group
   owner_email String? // Email of the group owner
+  group_color String? // Color for the group
   created_date DateTime @default(now())
+  
+  // Add unique constraint to prevent duplicate groups
+  @@unique([name, members], name: "unique_group_name_members")
 }
 
 model Notification {

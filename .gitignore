@@ -4,3 +4,9 @@ server/prisma/prisma/*.db
 server/prisma/prisma/*.sqlite*
 server/prisma/*.db
 server/prisma/*.sqlite*
+node_modules/
+server/node_modules/
+.env
+server/.env
+server/prisma/*.db
+server/prisma/*.sqlite*

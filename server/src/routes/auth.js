@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 // Load environment variables before initializing Prisma
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const prisma = new PrismaClient();
 const router = express.Router();

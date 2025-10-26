@@ -412,8 +412,35 @@ router.post('/:name/filter', requireAuth, async (req,res)=>{
   if(!model) return res.status(404).json({ error:`Unknown entity ${name}` });
   try{
     const orderBy = sortBy ? [{ [sortBy.replace(/^-/, '')]: sortBy.startsWith('-') ? 'desc':'asc' }] : undefined;
+    
+    // Special handling for Group filtering by members
+    let whereClause = buildWhere(where);
+    if (name === 'Group' && where.members) {
+      // For Group filtering by members, we need to check if the email exists in the JSON array
+      const userEmail = where.members;
+      const allGroups = await model.findMany({
+        orderBy,
+        take: typeof limit === 'number' ? limit : undefined
+      });
+      
+      // Filter groups where the user's email is in the members JSON array
+      const filteredGroups = allGroups.filter(group => {
+        try {
+          const members = JSON.parse(group.members || '[]');
+          return members.includes(userEmail);
+        } catch (error) {
+          console.error('Error parsing group members:', error);
+          return false;
+        }
+      });
+      
+      // Transform Group data to convert members JSON string to array
+      res.json(transformGroupData(filteredGroups));
+      return;
+    }
+    
     const rows = await model.findMany({
-      where: buildWhere(where),
+      where: whereClause,
       orderBy,
       take: typeof limit === 'number' ? limit : undefined
     });
@@ -454,6 +481,39 @@ router.post('/:name', requireAuth, async (req,res)=>{
     // Transform Group data for database storage
     let data = name === 'Group' ? transformGroupDataForDB(req.body) : req.body;
     
+    // Check for duplicate groups (same name and same members)
+    if (name === 'Group') {
+      const existingGroups = await prisma.group.findMany({
+        where: {
+          name: data.name
+        }
+      });
+      
+      // Check if any existing group has the same members
+      for (const existingGroup of existingGroups) {
+        try {
+          const existingMembers = JSON.parse(existingGroup.members || '[]');
+          const newMembers = JSON.parse(data.members || '[]');
+          
+          // Sort both arrays for comparison
+          const sortedExisting = existingMembers.sort();
+          const sortedNew = newMembers.sort();
+          
+          // Check if arrays are equal
+          if (sortedExisting.length === sortedNew.length && 
+              sortedExisting.every((member, index) => member === sortedNew[index])) {
+            return res.status(400).json({ 
+              error: 'A group with this name and members already exists',
+              details: 'Please choose a different name or modify the member list'
+            });
+          }
+        } catch (error) {
+          // If JSON parsing fails, continue with other groups
+          console.error('Error parsing group members:', error);
+        }
+      }
+    }
+    
         // Add user information for GiftCard creation
         if (name === 'GiftCard') {
           // Map frontend fields to database fields
@@ -474,6 +534,32 @@ router.post('/:name', requireAuth, async (req,res)=>{
             card_color: data.card_color || null,
             created_by: req.user.email,
             owner_email: req.user.email
+          };
+        }
+        
+        // Add user information for SharedCard creation
+        if (name === 'SharedCard') {
+          // Map frontend fields to database fields
+          data = {
+            card_id: data.card_id,
+            card_name: data.card_name,
+            vendor: data.vendor || null,
+            balance: data.balance ? Math.round(data.balance * 100) : null, // Convert to cents
+            expiry_date: data.expiry_date ? new Date(data.expiry_date) : null,
+            card_type: data.card_type || null,
+            card_number: data.card_number || null,
+            cvv: data.cvv || null,
+            activation_code: data.activation_code || null,
+            online_page_url: data.online_page_url || null,
+            notes: data.notes || null,
+            card_image_url: data.card_image_url || null,
+            purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
+            card_color: data.card_color || null,
+            shared_with: data.shared_with && Array.isArray(data.shared_with) ? JSON.stringify(data.shared_with) : null, // Convert array to JSON string
+            shared_with_group_id: data.shared_with_group_id || null,
+            group_name: data.group_name || null,
+            owner_email: data.owner_email,
+            created_by: req.user.email
           };
         }
     
@@ -511,11 +597,23 @@ router.post('/:name', requireAuth, async (req,res)=>{
         updated_date: row.updated_date ? row.updated_date.toISOString() : null
       };
       res.status(201).json(transformedRow);
+    } else if (name === 'SharedCard') {
+      // Transform SharedCard data for frontend
+      const transformedRow = {
+        ...row,
+        balance: row.balance ? row.balance / 100 : null, // Convert from cents
+        expiry_date: row.expiry_date ? row.expiry_date.toISOString() : null,
+        created_date: row.created_date ? row.created_date.toISOString() : null,
+        shared_with: row.shared_with ? JSON.parse(row.shared_with) : null // Convert JSON string back to array
+      };
+      res.status(201).json(transformedRow);
     } else {
       res.status(201).json(row);
     }
   }catch(e){ 
     console.error('Create error:', e); 
+    console.error('Entity:', name);
+    console.error('Data being created:', JSON.stringify(data, null, 2));
     res.status(500).json({ 
       error: 'Create failed', 
       details: e.message,
@@ -531,6 +629,40 @@ router.put('/:name/:id', requireAuth, async (req,res)=>{
   try{
     // Transform Group data for database storage
     let data = name === 'Group' ? transformGroupDataForDB(req.body) : req.body;
+    
+    // Check for duplicate groups (same name and same members) - only if name or members are being updated
+    if (name === 'Group' && (data.name || data.members)) {
+      const existingGroups = await prisma.group.findMany({
+        where: {
+          name: data.name,
+          id: { not: Number(id) } // Exclude current group from check
+        }
+      });
+      
+      // Check if any existing group has the same members
+      for (const existingGroup of existingGroups) {
+        try {
+          const existingMembers = JSON.parse(existingGroup.members || '[]');
+          const newMembers = JSON.parse(data.members || '[]');
+          
+          // Sort both arrays for comparison
+          const sortedExisting = existingMembers.sort();
+          const sortedNew = newMembers.sort();
+          
+          // Check if arrays are equal
+          if (sortedExisting.length === sortedNew.length && 
+              sortedExisting.every((member, index) => member === sortedNew[index])) {
+            return res.status(400).json({ 
+              error: 'A group with this name and members already exists',
+              details: 'Please choose a different name or modify the member list'
+            });
+          }
+        } catch (error) {
+          // If JSON parsing fails, continue with other groups
+          console.error('Error parsing group members:', error);
+        }
+      }
+    }
     
     // Check if this is a color-only update (no logging needed)
     const isColorOnlyUpdate = (name === 'GiftCard' || name === 'SharedCard') && 
